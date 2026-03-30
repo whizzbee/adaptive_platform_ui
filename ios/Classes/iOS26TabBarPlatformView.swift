@@ -210,6 +210,12 @@ class iOS26TabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelegate {
             bar.selectedItem = items[selectedIndex]
         }
 
+        // Add a tap gesture recognizer to catch re-selection taps that
+        // iOS 26 Liquid Glass UITabBar swallows (no delegate callback).
+        let tapGR = UITapGestureRecognizer(target: self, action: #selector(handleRawTap(_:)))
+        tapGR.cancelsTouchesInView = false
+        bar.addGestureRecognizer(tapGR)
+
         container.addSubview(bar)
         NSLayoutConstraint.activate([
             bar.leadingAnchor.constraint(equalTo: container.leadingAnchor),
@@ -519,25 +525,36 @@ class iOS26TabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelegate {
         }
     }
 
-    private var lastTapWasReselection = false
+    /// Tracks whether the raw tap gesture already sent a re-selection event
+    /// so that didSelect does not double-fire for the same touch.
+    private var rawTapHandledReselection = false
 
     func view() -> UIView { container }
 
-    func tabBar(_ tabBar: UITabBar, shouldSelect item: UITabBarItem) -> Bool {
-        // On iOS 26+, didSelect may not fire for re-selection of the already-selected tab.
-        // Detect re-selection here and send the event so Flutter onTap always fires.
-        if let bar = self.tabBar, bar === tabBar, bar.selectedItem == item,
-           let items = bar.items, let idx = items.firstIndex(of: item) {
-            lastTapWasReselection = true
-            channel.invokeMethod("valueChanged", arguments: ["index": idx])
+    /// Raw tap gesture recognizer fires for ALL taps on the tab bar,
+    /// including re-selections that iOS 26 Liquid Glass swallows.
+    @objc private func handleRawTap(_ gesture: UITapGestureRecognizer) {
+        guard let bar = self.tabBar, let items = bar.items, !items.isEmpty else { return }
+        let location = gesture.location(in: bar)
+        let itemWidth = bar.bounds.width / CGFloat(items.count)
+        let tappedIndex = Int(location.x / itemWidth)
+        guard tappedIndex >= 0, tappedIndex < items.count else { return }
+
+        // Only handle re-selection here; new selections go through didSelect
+        if items[tappedIndex] == bar.selectedItem {
+            rawTapHandledReselection = true
+            channel.invokeMethod("valueChanged", arguments: ["index": tappedIndex])
         } else {
-            lastTapWasReselection = false
+            rawTapHandledReselection = false
         }
-        return true
     }
 
     func tabBar(_ tabBar: UITabBar, didSelect item: UITabBarItem) {
-        if lastTapWasReselection { return }
+        // Skip if the raw tap gesture already forwarded this re-selection
+        if rawTapHandledReselection {
+            rawTapHandledReselection = false
+            return
+        }
         if let bar = self.tabBar, bar === tabBar, let items = bar.items, let idx = items.firstIndex(of: item) {
             channel.invokeMethod("valueChanged", arguments: ["index": idx])
         }
