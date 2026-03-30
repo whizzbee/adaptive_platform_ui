@@ -851,30 +851,16 @@ class _MinimizableTabBarState extends State<_MinimizableTabBar>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _animation,
-      builder: (context, child) {
-        // Calculate minimized state
-        // value: 0.0 = expanded (full size), 1.0 = minimized (70% size, 50% opacity)
-        final minimizeProgress = _animation.value;
-        final scale = 1.0 - (minimizeProgress * 0.3); // 1.0 → 0.7
-        final opacity = 1.0 - (minimizeProgress * 0.5); // 1.0 → 0.5
-
-        return Transform.scale(
-          scale: scale,
-          alignment: Alignment.bottomCenter,
-          child: Opacity(opacity: opacity, child: child),
-        );
-      },
-      child: IOS26NativeTabBar(
-        destinations: widget.destinations,
-        selectedIndex: widget.selectedIndex,
-        onTap: widget.onTap,
-        tint:
-            widget.selectedItemColor ?? CupertinoTheme.of(context).primaryColor,
-        unselectedItemTint: widget.unselectedItemColor,
-        minimizeBehavior: widget.minimizeBehavior,
-      ),
+    // No scale/opacity animation — tab bar stays full size and fully visible.
+    // Content scrolls behind it, visible through the glass effect.
+    return IOS26NativeTabBar(
+      destinations: widget.destinations,
+      selectedIndex: widget.selectedIndex,
+      onTap: widget.onTap,
+      tint:
+          widget.selectedItemColor ?? CupertinoTheme.of(context).primaryColor,
+      unselectedItemTint: widget.unselectedItemColor,
+      minimizeBehavior: TabBarMinimizeBehavior.never,
     );
   }
 }
