@@ -100,7 +100,24 @@ class iOS26ScaffoldManager: NSObject {
 // MARK: - UITabBarControllerDelegate
 @available(iOS 13.0, *)
 extension iOS26ScaffoldManager: UITabBarControllerDelegate {
+    private static var lastTapWasReselection = false
+
+    func tabBarController(_ tabBarController: UITabBarController, shouldSelect viewController: UIViewController) -> Bool {
+        // Fire event on re-selection so Flutter onTap always triggers (needed for 5-tap debug gesture)
+        if viewController == tabBarController.selectedViewController {
+            iOS26ScaffoldManager.lastTapWasReselection = true
+            if let viewControllers = tabBarController.viewControllers,
+               let idx = viewControllers.firstIndex(of: viewController) {
+                channel.invokeMethod("onTabSelected", arguments: idx)
+            }
+        } else {
+            iOS26ScaffoldManager.lastTapWasReselection = false
+        }
+        return true
+    }
+
     func tabBarController(_ tabBarController: UITabBarController, didSelect viewController: UIViewController) {
+        if iOS26ScaffoldManager.lastTapWasReselection { return }
         let index = tabBarController.selectedIndex
         channel.invokeMethod("onTabSelected", arguments: index)
     }

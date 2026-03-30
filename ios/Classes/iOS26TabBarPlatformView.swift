@@ -519,9 +519,25 @@ class iOS26TabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelegate {
         }
     }
 
+    private var lastTapWasReselection = false
+
     func view() -> UIView { container }
 
+    func tabBar(_ tabBar: UITabBar, shouldSelect item: UITabBarItem) -> Bool {
+        // On iOS 26+, didSelect may not fire for re-selection of the already-selected tab.
+        // Detect re-selection here and send the event so Flutter onTap always fires.
+        if let bar = self.tabBar, bar === tabBar, bar.selectedItem == item,
+           let items = bar.items, let idx = items.firstIndex(of: item) {
+            lastTapWasReselection = true
+            channel.invokeMethod("valueChanged", arguments: ["index": idx])
+        } else {
+            lastTapWasReselection = false
+        }
+        return true
+    }
+
     func tabBar(_ tabBar: UITabBar, didSelect item: UITabBarItem) {
+        if lastTapWasReselection { return }
         if let bar = self.tabBar, bar === tabBar, let items = bar.items, let idx = items.firstIndex(of: item) {
             channel.invokeMethod("valueChanged", arguments: ["index": idx])
         }
